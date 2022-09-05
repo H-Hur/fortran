@@ -1,0 +1,4 @@
+L113                                    <-- input standard region : L98.dat
+20 18.0                                    <-- FOV, cut magnitude
+ 2.4  -10.5                                                 <-- field shift
+ 2.4  -10.5                                                  <-- chip shift

@@ -1,0 +1,9 @@
+3                       #order of fitting
+325.4461667             #R.A. in degree
+ 00.4749722222          #Dec. in degree
+obj4205_8.input         #standard coo, stad list with t1,a12,t13,*,*
+obj4205_8.ap            #standard ap phot file *.ap
+L113.pho                #standard pho file
+L113.pos                #standard pos file]
+master.8                #output coo file
+t1,a24------------------

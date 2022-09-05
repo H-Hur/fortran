@@ -1,0 +1,16 @@
+#input file (A32)              ----
+CTIO4m200805V_chip1.std           output table
+SA101F1V_1.std                    input files
+SA104F1V_1.std
+SA104F2V_1.std
+SA107F1V_1.std
+SA107F2V_1.std
+SA110F1V_1.std
+SA110F2V_1.std
+SA112F2V_1.std
+SA113V1_1.std
+SA113V2_1.std
+SA98F1V_1.std
+SA98F2V_1.std
+SA98F3V_1.std
+SA98F4V_1.std
