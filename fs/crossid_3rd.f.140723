@@ -1,0 +1,967 @@
+c     gfortran -o crossid_3rd /Users/apple/work/fortran/subroutine/fs/crossid_3rd.f /Users/apple/work/fortran/subroutine/caltools/mat.f /Users/apple/work/fortran/subroutine/caltools/std_excl.f /Users/apple/work/fortran/subroutine/caltools/lint.f
+C     21,22,23,24,25,26,27,28,32,33,34,35,36,37,38,39,40
+      parameter(ns=100000,ni=100,nx=1000)
+      character als(ni)*24,apc(ni)*24,apc_in(ni)*24,clt(ni)*24,H*1
+      real apcor_x(ns),apcor_y(ns),apcor(ns),apcor_wt(ns),aprad,thr
+      real*8 xeq(nx),yeq(nx)
+      integer ncor,intrxx,intrxy,intryx,intryy,master(ni),n_apcor(ni)
+      integer nimage
+      open(21,file='input.crossid')
+      open(40,file='apcxid.cid_3rd') 
+      nimage=0
+      thr=2.5
+      do i=1,nx
+       read(21,'(t1,a1)',end=99) H
+       if(H.ne.'#') then
+        backspace(21)
+        nimage=nimage+1 
+        read(21,'(t1,4a24,f9.3,5i6)',end=99)
+     &  als(nimage),apc(nimage),apc_in(nimage),clt(nimage),aprad,
+     &  intrxx,intrxy,intryx,intryy,master(nimage)
+        n_apcor(nimage)=0
+        call read_als(nimage,als(nimage))
+        if(apc(nimage).ne.'                        ') then
+         n_apcor(nimage)=1
+         call read_apc(nimage,apc(nimage),aprad)
+         write(40,'(a95)') '#im ID(ap)   ID   xc       yc        dx p   
+     &   dy    psfmag psferr apmg   apmerr  apcor  apcerr              '
+         call apcxid(nimage,apcor_x,apcor_y,apcor,apcor_wt,thr,ncor)
+         elseif(apc_in(nimage).ne.'                        ') then
+         call read_apc_in(apc_in(nimage),apcor_x,apcor_y,apcor,apcor_wt
+     ^   ,ncor)
+        else
+         if(nimage.ge.1) print *,i,'st als file has no apcor input!!!'
+         if(nimage.ge.2) print *,i,'nd als file has no apcor input!!!'
+         if(nimage.ge.3) print *,i,'rd als file has no apcor input!!!'
+         if(nimage.ge.4) print *,i,'th als file has no apcor input!!!'
+         goto 999
+        endif     
+        call apcor_apc(nimage,apcor_x,apcor_y,apcor,apcor_wt,ncor)
+        call make_3rd_transform(clt(nimage),intrxx,intrxy,intryx,intryy)
+       endif  
+      enddo
+99    print *,nimage,' als files read.'
+      close(40) 
+      close(21)
+      call cid(nimage,master,n_apcor) 
+
+999   stop
+      end
+
+      subroutine cid(nim,master,n_apcor)
+      parameter(ns=100000,ni=100,nx=1000,np=10)
+      common/dat/id(ni,ns),xc(ni,ns),yc(ni,ns),
+     &xc_trs(ni,ns),yc_trs(ni,ns),rmag(ni,ns),apmag(ni,ns),
+     &err(ni,ns),sharp(ni,ns),chi(ni,ns),ut(ni),fwhm(ni),airmass(ni),
+     &als,filter,nstar(ni)
+      character als(ni)*10,filter(ni)*10,ch(13)*1,als_ch(10)*10
+      character rjt1*13,rjt2*13,chk1*13,chk2*13
+      common/ciddat/id_cid(ni,ns),xc_im(ni,ns),yc_im(ni,ns),
+     &xc_cid(ni,ns),yc_cid(ni,ns),amag_cid(ni,ns),err_cid(ni,ns),
+     &sharp_cid(ni,ns),chi_cid(ni,ns),num_ref_part(ni,ns,np),
+     &np_ref(ni,ns),num_tar_part(ni,ns,np),np_tar(ni,ns),nstars
+      real dist,fitrad,dx_rms(ni),dy_rms(ni),dist_close,x_close,y_close
+      real rmag_close,err_close,xc_av(ns),yc_av(ns)
+      real*8 coow(ns),wt_co
+      integer nim,np_tot,nch,ncid(ni),nt,nr,id_prev,master(ni),ncoo(ns)
+      integer n_apcor(ni),imnum_mas(ns)
+      do i=1,nim
+       dx_rms(i)=0.
+       dy_rms(i)=0.
+       ncid(i)=0        
+       read(als(i),'(10a1)') (ch(j),j=1,10)
+       do j=1,10
+        if(ch(j).eq.'.') goto 10
+       enddo
+10     nch=j-1
+       write(als_ch(i),'(a10)') ' '
+       write(als_ch(i),'(10a1)') (ch(j),j=1,nch)
+      enddo
+      do i=1,nstar(1)
+       id_cid(1,i)=id(1,i)
+       xc_im(1,i)=xc(1,i)
+       yc_im(1,i)=yc(1,i)
+       xc_cid(1,i)=xc(1,i)
+       yc_cid(1,i)=yc(1,i)
+       amag_cid(1,i)=apmag(1,i)
+       err_cid(1,i)=err(1,i)
+       sharp_cid(1,i)=sharp(1,i)
+       chi_cid(1,i)=chi(1,i)
+       xc_av(i)=xc(1,i)
+       yc_av(i)=yc(1,i)
+       ncoo(i)=1
+       coow(i)=sqrt(0.0001d0/err(1,i)/err(1,i))
+       coow(i)=min(1.d0,coow(i))
+       imnum_mas(i)=1
+       do j=1,nim
+        np_ref(j,i)=0
+        do k=1,np 
+         num_ref_part(j,i,k)=0
+        enddo
+       enddo
+      enddo
+      nstars=nstar(1)
+
+      do i=2,nim
+       fitrad=max(fwhm(1),fwhm(i))/2. !@#$
+       write(*,'(i3,a41,f4.2,a6)') 
+     & i,' Searching radius = max(fwhm1+fwhm2)/2 = ',fitrad,' pixel' 
+
+       do j=1,nstar(i)
+        np_tar(i,j)=0
+        do k=1,np
+         num_tar_part(i,j,k)=0
+        enddo
+        do k=1,nstars
+         dist=sqrt((xc_trs(i,j)-xc_av(k))**2
+     &   +(yc_trs(i,j)-yc_av(k))**2)
+         if(dist.le.fitrad) then
+          np_ref(i,k)=np_ref(i,k)+1
+          num_ref_part(i,k,np_ref(i,k))=j
+          np_tar(i,j)=np_tar(i,j)+1
+          num_tar_part(i,j,np_tar(i,j))=k
+          wt_co=min(1.d0,sqrt(0.0001d0/err(1,i)/err(1,i)))
+          ncoo(k)=ncoo(k)+1
+          xc_av(k)=(xc_av(k)*coow(i)+xc_trs(i,j)*wt_co)/(coow(i)+wt_co)
+          yc_av(k)=(yc_av(k)*coow(i)+yc_trs(i,j)*wt_co)/(coow(i)+wt_co)
+          coow(k)=coow(k)+wt_co
+         endif
+        enddo
+        if(np_tar(i,j).eq.0) then
+         nstars=nstars+1
+         imnum_mas(nstars)=i
+c         print *,i,k,nstars
+         if(id(i,j).eq.5564.and.i.eq.4) then 
+          print *,i,j,nstars
+         endif
+         if(id(i,j).eq.4154.and.i.eq.5) then
+          print *,i,j,nstars
+         endif
+         id_cid(i,nstars)=id(i,j)
+         xc_im(i,nstars)=xc(i,j)
+         yc_im(i,nstars)=yc(i,j)
+         xc_cid(i,nstars)=xc_trs(i,j)
+         yc_cid(i,nstars)=yc_trs(i,j)
+         amag_cid(i,nstars)=apmag(i,j)
+         err_cid(i,nstars)=err(i,j)
+         sharp_cid(i,nstars)=sharp(i,j)
+         chi_cid(i,nstars)=chi(i,j)
+         xc_av(nstars)=xc_trs(i,j)
+         yc_av(nstars)=yc_trs(i,j)
+         ncoo(nstars)=1
+         coow(nstars)=min(1.d0,sqrt(0.0001d0/err(i,j)/err(i,j)))
+         do k=1,nim!@@@@####
+          np_ref(k,nstars)=0
+          do L=1,np
+           num_ref_part(k,nstars,L)=0
+          enddo
+         enddo
+        endif
+       enddo
+      enddo
+      print *,'Total ',nstars,' have been counted from all als files' 
+
+c  Building Reject list
+      read(als(1),'(10a1)') (ch(i),i=1,10)
+      do i=1,10
+       if(ch(i).eq.'.') goto 200
+      enddo
+      write(ch(10),'(a1)') '.'
+200   write(ch(i+1),'(a1)') 'r'
+      write(ch(i+2),'(a1)') 'j'
+      write(ch(i+3),'(a1)') 't'
+      write(rjt1,'(13a1)') (ch(j),j=1,i+3)
+      write(ch(i+1),'(a1)') 'c'
+      write(ch(i+2),'(a1)') 'h'
+      write(ch(i+3),'(a1)') 'k'
+      write(chk1,'(13a1)') (ch(j),j=1,i+3)
+      id_prev=0
+      open(35,file='double.cid_3rd')
+      write(35,'(t1,a22,a10)') '#Master allstar file: ',als(1)
+      open(36,file=rjt1)
+      open(38,file=chk1)
+      do j=2,nim
+       read(als(j),'(10a1)') (ch(i),i=1,10)
+       do i=1,10
+        if(ch(i).eq.'.') goto 210
+       enddo
+       write(ch(10),'(a1)') '.'
+210    write(ch(i+1),'(a1)') 'r'
+       write(ch(i+2),'(a1)') 'j'
+       write(ch(i+3),'(a1)') 't'
+       write(rjt2,'(13a1)') (ch(k),k=1,i+3)
+       write(ch(i+1),'(a1)') 'c'
+       write(ch(i+2),'(a1)') 'h'
+       write(ch(i+3),'(a1)') 'k'
+       write(chk2,'(13a1)') (ch(k),k=1,i+3)
+       open(37,file=rjt2)
+       open(39,file=chk2)
+       write(35,'(t1,a22,a10)') '#Target allstar file: ',als(j)
+       write(35,'(t1,a126)')
+     & '#im N  ID_ref xc_av     yc_av   xc_im    yc_im mag_ref merr_ref 
+     &ID_tar xc_tar   yc_tar   xc_im    yc_im  mag_tar merr_tar dist   '
+       do i=1,nstars
+        if(np_ref(j,i).eq.1.and.np_tar(j,num_ref_part(j,i,1)).eq.1) then
+         id_cid(j,i)=id(j,num_ref_part(j,i,1))
+         xc_im(j,i)=xc(j,num_ref_part(j,i,1))
+         yc_im(j,i)=yc(j,num_ref_part(j,i,1))
+         xc_cid(j,i)=xc_trs(j,num_ref_part(j,i,1))
+         yc_cid(j,i)=yc_trs(j,num_ref_part(j,i,1))
+         amag_cid(j,i)=apmag(j,num_ref_part(j,i,1))
+         err_cid(j,i)=err(j,num_ref_part(j,i,1))
+         sharp_cid(j,i)=sharp(j,num_ref_part(j,i,1))
+         chi_cid(j,i)=chi(j,num_ref_part(j,i,1))
+         dist=sqrt((xc_trs(j,num_ref_part(j,i,1))-xc_av(i))**2+
+     &   (yc_trs(j,num_ref_part(j,i,1))-yc_av(i))**2) 
+         dx_rms(j)=dx_rms(j)+
+     &   (xc_trs(j,num_ref_part(j,i,1))-xc_av(i))**2 
+         dy_rms(j)=dy_rms(j)+
+     &   (yc_trs(j,num_ref_part(j,i,1))-yc_av(i))**2  
+         ncid(j)=ncid(j)+1  
+        else
+         if(np_ref(j,i).ge.2) then  
+          nt=num_ref_part(j,i,1)
+          dist=sqrt((xc_trs(j,nt)-xc_av(i))**2+
+     &    (yc_trs(j,nt)-yc_av(i))**2)
+          write(35,'(t1,2i3,i6,4f9.3,2f7.3,1x,i6,4f9.3,3f7.3)') 
+     &    imnum_mas(i),ncoo(i),id_cid(imnum_mas(i),i),xc_av(i),yc_av(i),
+     &    xc_im(imnum_mas(i),i),yc_im(imnum_mas(i),i),
+     &    amag_cid(imnum_mas(i),i),err_cid(imnum_mas(i),i),
+     &    id(j,nt),xc_trs(j,nt),yc_trs(j,nt),
+     &    xc(j,nt),yc(j,nt),apmag(j,nt),err(j,nt),dist
+          dist_close=dist
+          x_close=xc(j,nt)
+          y_close=yc(j,nt)
+          rmag_close=apmag(j,nt)
+          err_close=err(j,nt)
+          do k=2,np_ref(j,i)
+           nt=num_ref_part(j,i,k)
+           dist=sqrt((xc_trs(j,nt)-xc_av(i))**2+
+     &     (yc_trs(j,nt)-yc_av(i))**2)
+           write(35,'(t64,i6,4f9.3,3f7.3)') 
+     &     id(j,nt),xc_trs(j,nt),yc_trs(j,nt),
+     &     xc(j,nt),yc(j,nt),apmag(j,nt),err(j,nt),dist
+           if(dist.lt.dist_close.and.err(j,nt).lt.err_close) then
+            dist_close=dist
+            err_close=err(j,nt)
+            write(37,'(2f10.3)') x_close,y_close
+            x_close=xc(j,nt)
+            y_close=yc(j,nt)
+           elseif(dist.gt.dist_close.and.err(j,nt).gt.err_close) then
+            write(37,'(2f10.3)') xc(j,nt),yc(j,nt)
+           else
+            write(39,'(2f10.3)') xc(j,nt),yc(j,nt)
+           endif       
+          enddo 
+         endif
+         if(np_tar(j,num_ref_part(j,i,1)).ge.2) then
+          nt=num_ref_part(j,i,1)
+          dist=sqrt((xc_trs(j,nt)-xc_av(i))**2+
+     &    (yc_trs(j,nt)-yc_av(i))**2)
+          if(id(j,nt).ne.id_prev) then
+           write(35,'(t1,2i3,i6,4f9.3,2f7.3,1x,i6,4f9.3,3f7.3)')
+     &     imnum_mas(i),ncoo(i),id_cid(imnum_mas(i),i),xc_av(i),yc_av(i)
+     &     ,xc_im(imnum_mas(i),i),yc_im(imnum_mas(i),i),
+     &     amag_cid(imnum_mas(i),i),err_cid(imnum_mas(i),i),
+     &     id(j,nt),xc_trs(j,nt),yc_trs(j,nt),
+     &     xc(j,nt),yc(j,nt),apmag(j,nt),err(j,nt),dist
+           id_prev=id(j,nt)
+           dist_close=dist
+           x_close=xc_av(i)
+           y_close=yc_av(i)
+           rmag_close=amag_cid(1,i)
+           err_close=err_cid(1,i)
+          else
+           write(35,'(t1,2i3,i6,4f9.3,2f7.3,t120,f7.3)')
+     &     imnum_mas(i),ncoo(i),id_cid(imnum_mas(i),i),xc_av(i),yc_av(i)
+     &     ,xc_im(imnum_mas(i),i),yc_im(imnum_mas(i),i),
+     &     amag_cid(imnum_mas(i),i),err_cid(imnum_mas(i),i),dist
+           if((dist.lt.dist_close.and.err_cid(1,i).lt.err_close).or.
+     &     (dist.lt.dist_close*1.1.and.err_cid(1,i)*1.5.lt.err_close)
+     &     .or.(dist*1.5.lt.dist_close.and.err_cid(1,i).lt.err_close*1.1
+     &     )) then
+            dist_close=dist
+            err_close=err_cid(1,i)
+            write(36,'(2f10.3)') x_close,y_close
+            x_close=xc_av(i)
+            y_close=yc_av(i)
+           elseif((dist.gt.dist_close.and.err_cid(1,i).gt.err_close).or.
+     &     (dist.gt.dist_close*1.1.and.err_cid(1,i).gt.err_close*1.5)
+     &     .or.(dist*1.5.gt.dist_close.and.err_cid(1,i)*1.1.gt.err_close
+     &     )) then
+            write(36,'(2f10.3)')
+     &      xc_im(imnum_mas(i),i),yc_im(imnum_mas(i),i)
+           else
+            write(38,'(2f10.3)')
+     &      xc_im(imnum_mas(i),i),yc_im(imnum_mas(i),i)
+           endif
+          endif
+         endif
+        endif
+       enddo 
+       close(37)
+       write(35,'(t1,a1)') ' ' 
+      enddo     
+      close(35)
+      close(36)
+      do i=2,nim
+       if(ncid(i).ge.2) then
+        dx_rms(i)=sqrt(dx_rms(i)/real(ncid(i)-1))
+        dy_rms(i)=sqrt(dy_rms(i)/real(ncid(i)-1))
+       else
+        dx_rms(i)=0.
+        dy_rms(i)=0.
+       endif
+      enddo
+
+      open(32,file='out1.cid_3rd')
+      open(33,file='out2.cid_3rd')
+      open(34,file='coordinates.cid_3rd')
+      write(32,'(t2,30a10)') (als(i),i=1,nim)
+      write(33,'(t2,30a10)') (als(i),i=1,nim)
+c     1st file header##################
+      write(32,*) " F : Filrer"
+      write(32,*) " T : UT"
+      write(32,*) " X : Airmass"
+      write(32,*) " M : Master image for photometric zeropoint"
+      write(32,*) " A : Aperture correction information, 1=corrected usi
+     &ng image it self, 0=corrected by dummy file"
+      write(32,'(t1,a1,a6,30a10)') 'F','  ',(filter(i),i=1,nim)
+      write(32,'(t1,a1,30f10.6)') 'P',(fwhm(i),i=1,nim)
+      write(32,'(t1,a1,30f10.6)') 'T',(ut(i),i=1,nim)
+      write(32,'(t1,a1,30f10.7)') 'X',(airmass(i),i=1,nim)
+      write(32,'(t1,a1,30i10)') 'M',(master(i),i=1,nim)
+      write(32,'(t1,a1,30i10)') 'A',(n_apcor(i),i=1,nim)
+      write(32,'(t1,a1)') "*"
+c     1st file header##################
+c     2nd file header##################
+      write(33,*) ""
+      write(33,*) " F : Filrer"
+      write(33,*) ' P : PSFMAG'
+      write(33,*) " T : UT"
+      write(33,*) " X : Airmass"
+      write(33,*) " M : Master image for photometric zeropoint"
+      write(33,*) " A : Aperture correction information, 1=corrected usi
+     &ng image it self, 0=corrected by dummy file"
+      write(33,*) " *"
+      write(33,*) ' ID'
+      write(33,*) ' X center on the image'
+      write(33,*) ' Y center on the image'
+      write(33,*) ' X center on the Master image'
+      write(33,*) ' Y Center on the Master image'
+      write(33,*) ' Mag(aperture corrected)'
+      write(33,*) ' Merr(combined PSF photometry & aperture correctoin)'
+      write(33,*) ' Sharpness'
+      write(33,*) ' Chi'
+      write(33,*) ""
+      write(33,'(t1,a1,a6,30a10)') 'F','  ',(filter(i),i=1,nim)
+      write(33,'(t1,a1,30f10.6)') 'P',(fwhm(i),i=1,nim)
+      write(33,'(t1,a1,30f10.6)') 'T',(ut(i),i=1,nim)
+      write(33,'(t1,a1,30f10.7)') 'X',(airmass(i),i=1,nim)
+      write(33,'(t1,a1,30i10)') 'M',(master(i),i=1,nim)
+      write(33,'(t1,a1,30i10)') 'A',(n_apcor(i),i=1,nim)
+      write(33,'(t1,a1)') "*"
+c     2nd file header##################
+c     3rd file header##################
+      write(34,'(t1,30i20)') (i,i=1,nim)
+      write(34,'(a40)') '# Image number                                '
+      write(34,'(a40)') '# ALS                                         '
+      write(34,'(a40)') '# FILTER                                      '
+      write(34,'(a40)') '# PSF radius                                  '
+      write(34,'(a40)') '# UT                                          '
+      write(34,'(a40)') '# AIRMASS                                     '
+      write(34,'(a40)') '# dx rms                                      '
+      write(34,'(a40)') '# dy rms                                      '
+      write(34,'(t1,30i20)') (i,i=1,nim)
+      write(34,'(t1,30a20)') (als_ch(i),i=1,nim)
+      write(34,'(t1,30a20)') (filter(i),i=1,nim)
+      write(34,'(t1,30f20.6)') (fwhm(i),i=1,nim)
+      write(34,'(t1,30f20.6)') (ut(i),i=1,nim)
+      write(34,'(t1,30f20.6)') (airmass(i),i=1,nim)
+      write(34,'(t1,30f20.6)') (dx_rms(i),i=1,nim)
+      write(34,'(t1,30f20.6)') (dy_rms(i),i=1,nim)
+      write(34,'(a40)') '#     ID1     ID2     ID3 ... (I20)           '
+      write(34,'(a40)') '* xc1 yc1 xc2 yc2 xc3 yc3 .. (2f10.3)         '
+c     3rd file header##################
+      do i=1,nstars
+       write(32,'(30I10)') (id_cid(j,i),j=1,nim)
+       write(32,'(30f10.3)') (amag_cid(j,i),j=1,nim)
+       write(32,'(30f10.3)') (err_cid(j,i),j=1,nim)
+       write(32,*) ""
+       write(33,'(30I10)') (id_cid(j,i),j=1,nim)
+       write(33,'(30f10.3)') (xc_im(j,i),j=1,nim)
+       write(33,'(30f10.3)') (yc_im(j,i),j=1,nim)
+       write(33,'(30f10.3)') (xc_cid(j,i),j=1,nim)
+       write(33,'(30f10.3)') (yc_cid(j,i),j=1,nim)
+       write(33,'(30f10.3)') (amag_cid(j,i),j=1,nim)
+       write(33,'(30f10.3)') (err_cid(j,i),j=1,nim)
+       write(33,'(30f10.3)') (sharp_cid(j,i),j=1,nim)
+       write(33,'(30f10.3)') (chi_cid(j,i),j=1,nim)
+       write(33,*) ""
+       write(34,'(30I20)') (id_cid(j,i),j=1,nim)
+       write(34,'(60f10.3)') (xc_cid(j,i),yc_cid(j,i),j=1,nim)
+      enddo
+      close(32)
+      close(33)
+      close(34)
+      return
+      end
+
+      subroutine make_3rd_transform(input,intrxx,intrxy,intryx,intryy)
+      parameter(ns=100000,ni=100,nx=1000)
+      common/dat/id(ni,ns),xc(ni,ns),yc(ni,ns),
+     &xc_trs(ni,ns),yc_trs(ni,ns),rmag(ni,ns),apmag(ni,ns),
+     &err(ni,ns),sharp(ni,ns),chi(ni,ns),ut(ni),fwhm(ni),airmass(ni),
+     &als,filter,nstar(ni)
+      common/transformation/xeq,yeq
+      real*8 xeq(10),yeq(10)
+      character als(ni)*10,filter(ni)*10,input*24,H*1,trs(24)*1
+      character output1*24,output2*24,output3*24
+      real*8 x_ref(ns),y_ref(ns),x_im(ns),y_im(ns),dist
+      real*8 x1,y1,x2,y2,xcal,ycal,x,y
+      real xref(ns),yref(ns),xtar(ns),ytar(ns),dx_x,dy_x,dx_y,dy_y
+      real xtar_cid(ns),ytar_cid(ns),dx(ns),dy(ns),xbin,ybin
+      real xc_xc(ni),xc_dx(ni),xc_dy(ni),yc_yc(ni),yc_dx(ni),yc_dy(ni)
+      integer num_im,num_ref,nclt,ncid,intrxx,intrxy,intryx,intryy
+      integer ndxc,ndyc
+      data xbin,ybin,ndxc,ndyc/100.,100.,21,41/
+      open(25,file=input)
+      do i=1,ns
+       read(25,'(t1,a1)') H
+       if(H.ne.'#') goto 99
+      enddo
+99    backspace(25)
+      read(25,*) num_ref,num_im
+      if(num_ref.eq.num_im) then
+       do i=1,nstar(num_im)
+        xc_trs(num_im,i)=xc(num_im,i)
+        yc_trs(num_im,i)=yc(num_im,i)
+       enddo
+       close(25)
+       goto 999
+      endif
+      nclt=0
+      do i=1,ns
+       read(25,'(t1,a1)',end=199) H
+       if(H.ne.'#') then
+        nclt=nclt+1
+        backspace(25)
+        read(25,*,end=199) x1,y1,x2,y2
+        do j=1,nstar(num_im)
+         dist=sqrt((x2-xc(num_im,j))**2.d0+(y2-yc(num_im,j))**2.d0)
+         if(dist.lt.1.0*fwhm(num_im)) then
+          x_im(nclt)=xc(num_im,j)
+          y_im(nclt)=yc(num_im,j)
+          goto 101
+         endif
+        enddo
+        nclt=nclt-1
+        write(*,'(4f9.3,a20)') x1,x2,y1,y2,' star not identified '
+        goto 102
+101     do j=1,nstar(num_ref)
+         dist=sqrt((x1-xc(num_ref,j))**2.d0+(y1-yc(num_ref,j))**2.d0)
+         if(dist.lt.0.5*fwhm(num_ref)) then
+          x_ref(nclt)=xc(num_ref,j)
+          y_ref(nclt)=yc(num_ref,j)
+          goto 102
+         endif
+        enddo
+       endif
+       write(*,'(4f9.3,a20)') x1,x2,y1,y2,' star not identified'
+       nclt=nclt-1
+102    i102=i102
+      enddo
+199   close(25)
+      print *,nclt,' stars were identified for cross-id input' 
+      call make_3xy(10,x_im,y_im,x_ref,nclt,xeq,1.d0)
+      call make_3xy(10,x_im,y_im,y_ref,nclt,yeq,1.d0)
+      call fit_residual(0,xtar_cid,ytar_cid,dx,dy,ncid
+     &,xbin,xc_xc,xc_dx,ndxc)
+      call fit_residual(0,xtar_cid,ytar_cid,dx,dy,ncid
+     &,xbin,xc_xc,xc_dy,ndxc)
+      call fit_residual(0,xtar_cid,ytar_cid,dx,dy,ncid
+     &,ybin,yc_yc,yc_dx,ndyc)
+      call fit_residual(0,xtar_cid,ytar_cid,dx,dy,ncid
+     &,ybin,yc_yc,yc_dy,ndyc)
+      if(intrxx.eq.0.and.intrxy.eq.0.and.intryx.eq.0.and.intryy.eq.0)
+     &then
+       goto 290
+      else
+       do i=1,nstar(1)
+        xref(i)=xc(1,i)
+        yref(i)=yc(1,i)
+       enddo
+       do i=1,nstar(num_im)
+        x=xc(num_im,i)
+        y=yc(num_im,i)
+        xtar(i)=xeq(1) + xeq(2)*x + xeq(3)*y + xeq(4)*x*x +
+     &  xeq(5)*x*y + xeq(6)*y*y + xeq(7)*x*x*x + xeq(8)*x*x*y +
+     &  xeq(9)*x*y*y + xeq(10)*y*y*y
+        ytar(i)=yeq(1) + yeq(2)*x + yeq(3)*y + yeq(4)*x*x +
+     &  yeq(5)*x*y + yeq(6)*y*y + yeq(7)*x*x*x + yeq(8)*x*x*y +
+     &  yeq(9)*x*y*y + yeq(10)*y*y*y
+       enddo     
+       call cid_temp(xref,yref,nstar(1),xtar,ytar,nstar(num_im),
+     & 0.5*fwhm(num_ref),xtar_cid,ytar_cid,dx,dy,ncid)
+c     ntype 1 : xc-dx, 2:xc-dy, 3:yc-dx, 4:yc-dy, 0 : non correction
+c      subroutine fit_residual(ntype,xtar_cid,ytar_cid,dx,dy,ncid
+c     &dbin,av,dcoo,nbin)
+       if(intrxx.eq.1) call fit_residual(1,xtar_cid,ytar_cid,dx,dy,ncid
+     & ,xbin,xc_xc,xc_dx,ndxc)
+       if(intrxy.eq.1) call fit_residual(2,xtar_cid,ytar_cid,dx,dy,ncid
+     & ,xbin,xc_xc,xc_dy,ndxc)
+       if(intryx.eq.1) call fit_residual(3,xtar_cid,ytar_cid,dx,dy,ncid
+     & ,ybin,yc_yc,yc_dx,ndyc)
+       if(intryy.eq.1) call fit_residual(4,xtar_cid,ytar_cid,dx,dy,ncid
+     & ,ybin,yc_yc,yc_dy,ndyc)
+      endif
+290   read(input,'(24a1)') (trs(i),i=1,24)
+      do i=1,24
+       if(trs(i).eq.'.') goto 299
+      enddo
+299   write(trs(i+1),'(a1)') 't'
+      write(trs(i+2),'(a1)') 'r'
+      write(trs(i+3),'(a1)') 's'
+      write(output1,'(24a1)') (trs(j),j=1,24)
+      write(trs(i+1),'(a1)') 'r'
+      write(trs(i+2),'(a1)') 'e'
+      write(trs(i+3),'(a1)') 's'
+      write(output2,'(24a1)') (trs(j),j=1,24)
+      write(trs(i+1),'(a1)') 't'
+      write(trs(i+2),'(a1)') 'r'
+      write(trs(i+3),'(a1)') 's'
+      write(trs(i+4),'(a1)') '2'
+      write(output3,'(24a1)') (trs(j),j=1,24)
+
+      open(26,file=output1)
+      open(27,file=output2)
+      open(28,file=output3)
+      write(26,'(t1,a104)') '#xcal=xeq1 + xeq2*x + xeq3*y + xeq4*xx + xe
+     &q5*xy + xeq6*yy + xeq7*xxx + xeq8*xxy + xeq9*xyy + xeq10**yyy    '
+      write(26,*) (xeq(i),i=1,10)
+      write(26,'(t1,a104)') '#ycal=yeq1 + yeq2*x + yeq3*y + yeq4*xx + xe
+     &q5*xy + yeq6*yy + yeq7*xxx + yeq8*xxy + yeq9*xyy + yeq10**yyy    '
+      write(26,*) (yeq(i),i=1,10)
+      write(26,'(t1,a33,i3,a12,i3,a9)') 
+     &'#coordicates transformation from ',num_im,'th image to ',num_ref,
+     &'th image.                                                       '
+      write(26,'(t1,a86 )') '#    x_ref     y_ref       x_im     y_im   
+     &  x_ref_cal  y_ref_cal      x_res     y_res                      '
+      write(28,'(t1,a104)') '#xcal=xeq1 + xeq2*x + xeq3*y + xeq4*xx + xe
+     &q5*xy + xeq6*yy + xeq7*xxx + xeq8*xxy + xeq9*xyy + xeq10**yyy    '
+      write(28,*) (xeq(i),i=1,10)
+      write(28,'(t1,a104)') '#ycal=yeq1 + yeq2*x + yeq3*y + yeq4*xx + xe
+     &q5*xy + yeq6*yy + yeq7*xxx + yeq8*xxy + yeq9*xyy + yeq10**yyy    '
+      write(28,*) (yeq(i),i=1,10)
+      write(28,'(t1,a33,i3,a12,i3,a9)')
+     &'#coordicates transformation from ',num_im,'th image to ',num_ref,
+     &'th image.                                                       '
+      write(28,'(t1,a86 )') '#    x_ref     y_ref       x_im     y_im   
+     &  x_ref_cal  y_ref_cal      x_res     y_res                      '
+      write(27,'(a55)') 
+     &'#  x_av     dx_cor   dy_cor   y_av     dx_cor   dy_cor          '
+      do i=1,nclt
+       x=x_im(i)
+       y=y_im(i)
+       xcal=xeq(1) + xeq(2)*x + xeq(3)*y + xeq(4)*x*x + xeq(5)*x*y +
+     & xeq(6)*y*y + xeq(7)*x*x*x + xeq(8)*x*x*y + xeq(9)*x*y*y +
+     & xeq(10)*y*y*y
+       ycal=yeq(1) + yeq(2)*x + yeq(3)*y + yeq(4)*x*x + yeq(5)*x*y +
+     & yeq(6)*y*y + yeq(7)*x*x*x + yeq(8)*x*x*y + yeq(9)*x*y*y +
+     & yeq(10)*y*y*y
+       write(26,1) x_ref(i),y_ref(i),x_im(i),y_im(i),
+     & xcal,ycal,xcal-x_ref(i),ycal-y_ref(i)
+       call lint(real(xcal),xc_xc,xc_dx,dx_x,ndxc,ndxc)
+       call lint(real(xcal),xc_xc,xc_dy,dy_x,ndxc,ndxc)
+       call lint(real(ycal),yc_yc,yc_dx,dx_y,ndyc,ndyc)
+       call lint(real(ycal),yc_yc,yc_dy,dy_y,ndyc,ndyc)
+       write(28,1) x_ref(i),y_ref(i),x_im(i),y_im(i),
+     & xcal-dx_x-dx_y,ycal-dy_x-dy_y,
+     & xcal-dx_x-dx_y-x_ref(i),ycal-dy_x-dy_y-y_ref(i)
+      enddo
+      do i=1,ndyc
+       if(i.le.ndxc) then
+        write(27,'(6f9.3)') xc_xc(i),xc_dx(i),xc_dy(i),
+     &  yc_yc(i),yc_dx(i),yc_dy(i)
+       else
+        write(27,'(6f9.3)') -1.,-1.,-1.,yc_yc(i),yc_dx(i),yc_dy(i)
+       endif
+      enddo
+      write(27,'(t1,a86 )') '#    x_ref     y_ref       x_im     y_im   
+     &  x_ref_cal  y_ref_cal      x_res     y_res                      '
+      do i=1,nclt
+       x=x_im(i)
+       y=y_im(i)
+       xcal=xeq(1) + xeq(2)*x + xeq(3)*y + xeq(4)*x*x + xeq(5)*x*y + 
+     & xeq(6)*y*y + xeq(7)*x*x*x + xeq(8)*x*x*y + xeq(9)*x*y*y + 
+     & xeq(10)*y*y*y
+       ycal=yeq(1) + yeq(2)*x + yeq(3)*y + yeq(4)*x*x + yeq(5)*x*y +
+     & yeq(6)*y*y + yeq(7)*x*x*x + yeq(8)*x*x*y + yeq(9)*x*y*y + 
+     & yeq(10)*y*y*y
+       call lint(real(xcal),xc_xc,xc_dx,dx_x,ndxc,ndxc)
+       call lint(real(xcal),xc_xc,xc_dy,dy_x,ndxc,ndxc)
+       call lint(real(ycal),yc_yc,yc_dx,dx_y,ndyc,ndyc)
+       call lint(real(ycal),yc_yc,yc_dy,dy_y,ndyc,ndyc)
+       write(27,1) x_ref(i),y_ref(i),x_im(i),y_im(i),
+     & xcal-dx_x-dx_y,ycal-dy_x-dy_y,
+     & xcal-dx_x-dx_y-x_ref(i),ycal-dy_x-dy_y-y_ref(i)
+      enddo
+1     format(t1,2f10.3,2x,2f10.3,2x,2f10.3,2x,2f10.3)
+      close(26)
+      close(27)
+      close(28)
+599   do i=1,nstar(num_im)
+       x=xc(num_im,i)
+       y=yc(num_im,i)
+       xc_trs(num_im,i)=xeq(1) + xeq(2)*x + xeq(3)*y + xeq(4)*x*x + 
+     & xeq(5)*x*y + xeq(6)*y*y + xeq(7)*x*x*x + xeq(8)*x*x*y + 
+     & xeq(9)*x*y*y + xeq(10)*y*y*y
+       yc_trs(num_im,i)=yeq(1) + yeq(2)*x + yeq(3)*y + yeq(4)*x*x + 
+     & yeq(5)*x*y + yeq(6)*y*y + yeq(7)*x*x*x + yeq(8)*x*x*y + 
+     & yeq(9)*x*y*y + yeq(10)*y*y*y
+       call lint(xc_trs(num_im,i),xc_xc,xc_dx,dx_x,ndxc,ndxc)
+       call lint(xc_trs(num_im,i),xc_xc,xc_dy,dy_x,ndxc,ndxc)
+       call lint(yc_trs(num_im,i),yc_yc,yc_dx,dx_y,ndyc,ndyc)
+       call lint(yc_trs(num_im,i),yc_yc,yc_dy,dy_y,ndyc,ndyc)
+       xc_trs(num_im,i)=xc_trs(num_im,i)-dx_x-dx_y
+       yc_trs(num_im,i)=yc_trs(num_im,i)-dy_x-dy_y
+c       if(num_im.eq.7) write(*,'(4f10.4)') dx_x,dx_y,dy_x,dy_y
+      enddo
+999   return
+      end
+
+ccccccccccccccccccccccccccccccccccccccccccccccccccc
+c sub programs for subroutine 'make_3rd_transform' 
+      subroutine cid_temp(xref,yref,nref,xtar,ytar,ntar,fitrad,
+     &xtar_cid,ytar_cid,dx,dy,ncid)
+      parameter(ns=100000)
+      real xref(nref),yref(nref),xtar(ntar),ytar(ntar),fitrad,dist
+      real xtar_cid(ns),ytar_cid(ns),dx(ns),dy(ns)
+      real d_ref(nref),d_tar(ntar)
+      integer nref,ntar,ncid,npref(nref),nptar(ntar)
+      integer nref_close(nref),ntar_close(ntar)
+      do i=1,ntar
+       nptar(i)=0
+      enddo
+      ncid=0
+      do i=1,nref      
+       npref(i)=0
+       do j=1,ntar
+        dist=sqrt((xtar(j)-xref(i))**2+(ytar(j)-yref(i))**2)
+        if(dist.le.fitrad) then
+         npref(i)=npref(i)+1
+         nptar(j)=nptar(j)+1 
+         if(npref(i).eq.1.and.nptar(j).eq.1) then
+          nref_close(i)=j
+          ntar_close(j)=i
+          d_ref(i)=dist
+          d_tar(j)=dist
+         endif
+        endif
+       enddo
+      enddo
+      ncid=0
+      do j=1,ntar
+       if(nptar(j).eq.1.and.npref(ntar_close(j)).eq.1) then
+        ncid=ncid+1
+        xtar_cid(ncid)=xtar(j)
+        ytar_cid(ncid)=ytar(j)
+        dx(ncid)=xtar(j)-xref(ntar_close(j))
+        dy(ncid)=ytar(j)-yref(ntar_close(j))
+       endif
+      enddo
+      return
+      end
+
+c     nbin should be calculated before running this subroutine! 
+c     ntype 1 : xc-dx, 2:xc-dy, 3:yc-dx, 4:yc-dy, 0 : non correction
+      subroutine fit_residual(ntype,xtar_cid,ytar_cid,dx,dy,ncid
+     &,dbin,av,dcoo,nbin)
+      parameter(ns=100000)
+      real xtar_cid(ns),ytar_cid(ns),dx(ns),dy(ns),dbin
+      real coo,dcoo(nbin),bin1,bin2,dc(ns),std,av(nbin)
+      integer ntype,ncid,nbin,n,ncal
+      do i=1,nbin
+       dcoo(i)=0.
+       bin1=0.+dbin*real(i-1)
+       bin2=0.+dbin*real(i)
+       if(ntype.eq.0) then 
+        av(i)=0.5*(bin1+bin2)
+       else
+        n=0
+        av(i)=0.
+        do j=1,ncid
+         if(ntype.eq.1.or.ntype.eq.2) coo=xtar_cid(j)
+         if(ntype.eq.3.or.ntype.eq.4) coo=ytar_cid(j)
+         if(coo.ge.bin1.and.coo.lt.bin2) then
+          n=n+1
+          av(i)=av(i)+coo
+          if(ntype.eq.1.or.ntype.eq.3) dc(n)=dx(j)
+          if(ntype.eq.2.or.ntype.eq.4) dc(n)=dy(j)
+         endif
+        enddo 
+        if(n.eq.0) nbin=i-1
+        if(n.eq.0) goto 900
+        av(i)=av(i)/real(n)
+        call std_ex(dc,n,2.5,ncal,dcoo(i),std)
+       endif
+      enddo
+900   return
+      end
+c sub programs for subroutine 'make_3rd_transform' 
+ccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+      subroutine apcor_apc(num_im,apcor_x,apcor_y,apcor,apcor_wt,ncor)
+      parameter(ns=100000,ni=100)
+      common/dat/id(ni,ns),xc(ni,ns),yc(ni,ns),
+     &xc_trs(ni,ns),yc_trs(ni,ns),rmag(ni,ns),apmag(ni,ns),
+     &err(ni,ns),sharp(ni,ns),chi(ni,ns),ut(ni),fwhm(ni),airmass(ni),
+     &als,filter,nstar(ni)
+      character als(ni)*10,filter(ni)*10
+      integer num_im,ncor
+      real apcor_x(ns),apcor_y(ns),apcor(ns),apcor_wt(ns)
+      real dist,wd,wsum,apsum
+      do i=1,nstar(num_im)
+       wsum=0.
+       apsum=0.
+       do j=1,ncor
+        dist=sqrt((xc(num_im,i)-apcor_x(j))**2.
+     &  +(yc(num_im,i)-apcor_y(j))**2.)
+        wd=exp(-dist/500.d0)/exp(-100.d0/500.d0)
+        if(wd.gt.1.d0) wd=1.d0
+        apsum=apsum+apcor(j)*wd*apcor_wt(j)
+        wsum=wsum+wd*apcor_wt(j)
+       enddo
+       apmag(num_im,i)=rmag(num_im,i)+apsum/wsum
+       if(apsum.eq.0..or.wsum.eq.0.) print *,i,'th star in ',num_im,
+     &'th image has not been ap-corrected!!!'
+      enddo      
+      return
+      end 
+
+      subroutine read_apc_in(input,apcor_x,apcor_y,apcor,apcor_wt,ncor)
+      parameter(ns=100000)
+      integer ncor
+      real apcor_x(ns),apcor_y(ns),apcor(ns),apcor_e(ns),apcor_wt(ns)
+      character H*1,input*24
+      open(24,file=input)
+      do i=1,ns
+       read(24,'(t1,a1)') H
+       if(H.ne.'#') goto 99
+      enddo
+99    backspace(24)
+      do i=1,ns
+       read(24,*,end=199) apcor_x(i),apcor_y(i),apcor(i),apcor_e(i)
+       if(apcor_e(i).eq.0.) apcor_e(i)=0.001
+c       apcor_wt(i)=0.005*0.005/apcor_e(i)/apcor_e(i)
+       apcor_wt(i)=0.01*0.01/apcor_e(i)/apcor_e(i)
+       if(apcor_wt(i).gt.1.) apcor_wt(i)=1.
+      enddo
+199   ncor=i-1
+      print *,ncor,' apc corr input stars were read from ',input
+      close(24)
+      return
+      end
+      subroutine apcxid(num_im,apcor_x,apcor_y,apcor,apcor_wt,thr,ncor)
+      parameter(ns=100000,ni=100)
+      common/dat/id(ni,ns),xc(ni,ns),yc(ni,ns),
+     &xc_trs(ni,ns),yc_trs(ni,ns),rmag(ni,ns),apmag(ni,ns),
+     &err(ni,ns),sharp(ni,ns),chi(ni,ns),ut(ni),fwhm(ni),airmass(ni),
+     &als,filter,nstar(ni)
+      character als(ni)*10,filter(ni)*10
+      common/ap/amerr(ns),amag(ns),axc(ns),ayc(ns),nap,pmag(ns)
+      integer num_im,ncor,nn
+      real apcor_x(ns),apcor_y(ns),apcor(ns),apcor_wt(ns),aerr,dx,dy
+      real apcor_av,apcor_std,thr
+      do j=1,nap
+       apcor_wt(j)=0.
+       apcor_x(j)=axc(j)
+       apcor_y(j)=ayc(j)
+       do i=1,nstar(num_im)
+        dx=xc(num_im,i)-axc(j)
+        dy=yc(num_im,i)-ayc(j)
+        if(abs(dx).le.0.1*fwhm(num_im).and.abs(dy).le.0.1*fwhm(num_im)) 
+     &  then
+         apcor(j)=amag(j)-rmag(num_im,i)
+         if(amerr(j).eq.0.) amerr(j)=0.001
+         aerr=sqrt(amerr(j)**2+err(num_im,i)**2)
+         apcor_wt(j)=0.005*0.005/aerr/aerr
+c         apcor_wt(j)=0.01*0.01/aerr/aerr
+         if(apcor_wt(j).gt.1.) apcor_wt(j)=1.
+        endif
+       enddo
+100    i100=i100
+      enddo
+      ncor=nap
+      call std_ex_w(apcor,apcor_wt,ncor,thr,10,10,nn,apcor_av,apcor_std)
+      write(*,'(a14,f6.3,a3,f5.3,i4,a27,i4,a8)') 
+     &'Average Apcor=',apcor_av,'+/-',apcor_std,
+     &nn,' used for apcor calculation', ncor-nn,' ejected'
+      do j=1,nap
+       if(abs(apcor(j)-apcor_av).gt.thr*apcor_std) apcor_wt(j)=0.
+       do i=1,nstar(num_im)
+        dx=xc(num_im,i)-axc(j)
+        dy=yc(num_im,i)-ayc(j)
+        if(abs(dx).le.0.1*fwhm(num_im).and.abs(dy).le.0.1*fwhm(num_im))
+     &  then
+         aerr=sqrt(amerr(j)**2+err(num_im,i)**2)
+         write(40,'(t1,i3,2i6,4f9.3,7f7.3)')
+     &   num_im,j,id(num_im,i),xc(num_im,i),yc(num_im,i),dx,dy,
+     &   rmag(num_im,i),err(num_im,i),amag(j),amerr(j),apcor(j),aerr,
+     &   apcor_wt(j)
+         goto 200
+        endif
+       enddo
+200    i200=i200
+      enddo 
+      return
+      end
+      subroutine read_apc(num_im,input,aprad)
+      parameter(ns=100000,ni=100)
+      character input*24,temp(20)*3,title*7,cmer*5
+      integer nimage,nhead,naperture,numap,nbad,nindef,num_im
+      real fitrad,ann,dann,ap(24),readap,skip,aprad
+      common/ap/amerr(ns),amag(ns),axc(ns),ayc(ns),nap,pmag(ns)
+      open(23,file=input)
+      nhead=0
+      do i=1,100
+       read(23,'(t1,12a1)') (temp(j),j=1,12)
+       if(temp(1).eq.'#') then
+        nhead=nhead+1
+        if(temp(2).eq.'K') then
+         write(title,'(7a1)') (temp(j),j=4,10)
+         if(title.eq.'ANNULUS') then
+          backspace(23)
+          read(23,'(t17,f7.3)') ann
+         elseif(title.eq.'DANNULU') then
+          backspace(23)
+          read(23,'(t17,f7.3)') dann
+         endif
+        endif
+       else
+        backspace(23)
+        goto 100
+       endif
+      enddo
+100   fitrad=ann+dann
+      read(23,'(t1,a3)') temp(1)
+      do i=2,20
+       read(23,'(t1,a3)') temp(i)
+       if(temp(i).eq.temp(1)) goto 200
+      enddo
+200   naperture=i-5
+      do i=1,naperture+1
+       backspace(23)
+      enddo
+      do i=1,naperture
+       read(23,*) ap(i)
+       if(ap(i).eq.aprad) numap=i
+       if(ap(i).eq.aprad) goto 250
+      enddo
+250   rewind(23)
+      nbad=0
+      nindef=0
+      do i=1,nhead
+       read(23,'(a7)') title
+      enddo
+      nap=0
+      do 300 i=1,ns
+       read(23,'(a7)',end=500) title
+       nap=nap+1
+       read(23,*) axc(nap),ayc(nap)
+       read(23,'(a7)') title
+       read(23,'(a7)') title
+       read(23,*,end=500) readap,skip,skip,skip,pmag(nap)
+       do j=2,naperture
+        if(j.eq.numap) then
+         read(23,'(t52,a5)',end=500) cmer
+         if (cmer.eq.'INDEF') then
+          nindef=nindef+1
+          nap=nap-1
+          goto 300
+         else
+          backspace(23)
+         endif
+         read(23,*,end=500) readap,skip,skip,skip,amag(nap),amerr(nap)
+         if(amerr(nap).gt.0.01d0) nbad=nbad+1
+        else
+         read(23,'(a7)',end=500) title
+        endif
+       enddo
+300   continue
+500   close(23)
+      print *,naperture,' apertures have found. '
+      print *,'Aprad is ',numap,'th aperture'  
+      print *,nap,' stars have read from apc line ',num_im
+      if(nbad.gt.0) print *,'Warring. ',input,'has ',nbad,' of high merr
+     & stars higher than 0.01.'
+      return
+      end
+      subroutine read_als(num_im,input)
+      parameter(ns=100000,ni=100)
+      common/dat/id(ni,ns),xc(ni,ns),yc(ni,ns),
+     &xc_trs(ni,ns),yc_trs(ni,ns),rmag(ni,ns),apmag(ni,ns),
+     &err(ni,ns),sharp(ni,ns),chi(ni,ns),ut(ni),fwhm(ni),airmass(ni),
+     &als,filter,nstar(ni)
+      character als(ni)*10,filter(ni)*10
+      integer ih,im,is,nc,hour,mini,num_im
+      real sec
+      character input*24,H*1,head*10,value*23,cut(23)*1,ch*2,cm*2,cs*6
+      open(22,file=input)
+      write(als(num_im),'(t1,a10)') input
+      do i=1,ns
+       read(22,'(t1,a1)',end=99) H
+       backspace(22)
+       if(H.ne.'#') goto 99
+       if(H.eq.'#') then
+        read(22,'(t4,a10,t17,a23)',end=99) head,value
+        if(head.eq.'OTIME     ') then
+         read(value,'(23a1)') (cut(j),j=1,23)
+         ih=0
+         im=0
+         is=0
+         nc=0
+         do j=1,23
+          if(cut(j).eq.':'.and.nc.eq.0) then
+           ih=j
+           nc=nc+1
+          elseif(cut(j).eq.':'.and.nc.eq.1) then
+           im=j
+           nc=nc+1
+          elseif(cut(j).eq.':'.and.nc.eq.2) then
+           is=j
+          endif
+         enddo
+         write(ch,'(2a1)') (cut(j),j=1,ih-1)
+         write(cm,'(2a1)') (cut(j),j=ih+1,im-1)
+         write(cs,'(6a1)') (cut(j),j=im+1,im+6)
+         read(ch,'(i2)') hour
+         read(cm,'(i2)') mini
+         read(cs,*) sec
+         ut(num_im)=real(hour)+real(mini)/60.+real(sec)/3600.
+        endif
+       endif
+       if(head.eq.'XAIRMASS  ') read(value,*) airmass(num_im)
+       if(head.eq.'FITRAD    ') read(value,*) fwhm(num_im)
+       if(head.eq.'IFILTER   ') read(value,'(t1,a10)') filter(num_im)
+       if(head.eq.'MERGERAD  ') goto 99
+      enddo
+99    do i=1,ns
+       read(22,'(t1,a1)',end=199,err=198) H
+       if(H.ne.'#') backspace(22)
+       if(H.ne.'#') goto 199
+      enddo
+190   print *,input,'head skip error'
+      goto 199
+198   print *,input,'file reading error'
+199   do i=1,ns
+       read(22,*,end=299) id(num_im,i),xc(num_im,i),yc(num_im,i),
+     & rmag(num_im,i),err(num_im,i)
+       read(22,*,end=299) sharp(num_im,i),chi(num_im,i)
+      enddo
+299   nstar(num_im)=i-1
+      print *,nstar(num_im),' stars have read from als line ',num_im
+      close(22)
+      return
+      end       
+      

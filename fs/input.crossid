@@ -1,0 +1,10 @@
+#alsfile----------------apcfile-----------------apc_input_grid----------crossid_input-----------apcrad---xc_xc-xc_yc-yc_xc-yc_yc__master
+i75s_1.als              i75s_1.apc              i75s_1.apc_intest       i75s_1.clt              18.6       0     0     0     0    1
+r150s_1.als                                     r150s_1.apc_intest      r150s_1.clt             18.6       0     0     1     1    1
+v150s_1.als                                     v150s_1.apc_intest      v150s_1.clt             18.6       0     0     1     1    1
+i3s_1.als               i3s_1.apc               i3s_1.apc_intest        i3s_1.clt               18.6       0     1     1     1    0
+r3s_1.als               r3s_1.apc               r3s_1.apc_intest        r3s_1.clt               18.6       1     1     1     1    0
+v3s_1.als               v3s_1.apc               v3s_1.apc_intest        v3s_1.clt               18.6       1     1     0     1    0
+ha30s_1.als             ha30s_1.apc             ha30s_1.apc_intest      ha30s_1.clt             18.6       0     0     0     1    1
+ha1800s_1.als                                   ha1800s_1.apc_intest    ha1800s_1.clt           18.6       0     0     0     1    0
+ha300sc_1.als                                   ha300sc_1.apc_intest    ha300sc_1.clt           18.6       0     0     0     1    0

@@ -1,0 +1,22 @@
+quit
+data Ichip3.yc
+read x1
+read x 1
+read y 2
+limits x y
+box
+points x y
+quit
+data ~/work/cluster/WL2/aex/out2.aex
+data /home/gjgusdh/work/cluster/WL2/aex/out2.aex
+data aex.old
+quit
+data chip6.old
+data Vchip6.old
+read x 1
+read y 2
+limits x y
+box
+points x y
+con x y
+quit

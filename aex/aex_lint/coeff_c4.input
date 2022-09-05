@@ -1,0 +1,9 @@
+#Filter 1 = U, 2 = B, 3 = V, 4 = R, 5 = I,6 = Ha
+#Color number  1 = U-B, 2 = B-V, 3 = V-R, 4 = V-I, 5 = R-I  
+#                                                         Color number 100 = Ut   101=xc,      102=yc,    103=rad,   104=theta, 105=(B-V)_0 
+#Filter Color K_1      K_2     Zeropoint Xcenter  Ycenter Colordepend  UT depend  Xccddepend  Yccddepend  Rad depend  Direction dep  Add1 depend  Add2 depend  Add3 depend  
+#1         1   0.4585  0.0226  -0.2073    1024     2048    Uchip4.U-B   Uchip4.UT  Uchip4.xc   Uchip4.yc   Uchip4.rad  Uchip4.theta   Uchip4.add1  Uchip4.add2  Uchip4.add3
+2         2   0.2713  0.0270   0.4519    1024     2048    Bchip4.B-V   Bchip4.UT  Bchip4.xc   Bchip4.yc   Bchip4.rad  Bchip4.theta   Bchip4.add1  Bchip4.add2  Bchip4.add3
+3         2   0.1374  0.       0.6370    1024     2048    Vchip4.B-V   Vchip4.UT  Vchip4.xc   Vchip4.yc   Vchip4.rad  Vchip4.theta   Vchip4.add1  Vchip4.add2  Vchip4.add3
+3         4   0.1374  0.       0.6368    1024     2048    Vchip4.V-I   Vchip4.UT  Vchip4.xc   Vchip4.yc   Vchip4.rad  Vchip4.theta   Vchip4.add1  Vchip4.add2  Vchip4.add3
+5         4   0.0442  0.       0.0329    1024     2048    Ichip4.V-I   Ichip4.UT  Ichip4.xc   Ichip4.yc   Ichip4.rad  Ichip4.theta   Ichip4.add1  Ichip4.add2  Ichip4.add3

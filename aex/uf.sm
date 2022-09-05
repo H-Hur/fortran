@@ -1,0 +1,16 @@
+erase
+dev postportfile u-f.ps
+data U-f.B-V.ZAMS.cc
+read x 1
+read y 2
+limits -0.4 2.1 1.8 -1.2
+box
+points x y
+con x y
+xlabel B-V
+ylabel U-B-f
+data Sung2001.ZAMS.cc
+read x 3
+read y 4
+ltype 2
+con x y

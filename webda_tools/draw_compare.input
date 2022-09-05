@@ -1,0 +1,6 @@
+# input data files to draw compares.                        
+# input file      vvi vi vbv bv ub ub2 master  del_y        
+0303.dat             0  0  0  0  0  0  master  0.25
+0721.dat             0  0  0  0  0  0
+1852.dat             0  0  0  0  0  0
+0337.dat             0  0  0  0  0  0

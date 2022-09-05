@@ -1,0 +1,6 @@
+# R - Refrence image, T - Target image
+# Reference image name           num_im dist_cut(fwhm) error_cut(mag) chi_cut sharp_cut skycut(%/100) itercut(n)
+# Target image name              num_im Ref(star1(xc,yc) star2(xc,yc)) tar(star1(xc,yc) star2(xc,yc)) dist_cut(fwhm) error_cut(mag) chi_cut sharp_cut cidrad skycut(%/100) itercut(n)
+# A32-----------------------------*--------------------------------------------------------------------------------------     
+R i75s_1.als                        1  3.5  0.02  1.0  0.2 0.3 7
+T r150s_1.als                       2  1051.95 1771.95  358.06  562.46 1051.73 1769.90   357.75  560.39  5.  0.01  1.0  0.1  0.05 0.3 7

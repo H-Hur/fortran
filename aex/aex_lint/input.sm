@@ -1,0 +1,33 @@
+erase
+dev x11
+data test.dat
+read sv 3
+read ov 4
+read dv 5
+read si 6
+read oi 7
+read di 8
+read svi 9
+read ovi 10
+read dvi 11
+ptype 40 3
+location 3000 30000 3000 9000
+limits -0.5 5 -0.1 0.1
+box 
+xlabel (V-I)\\d Stetsonu \\u
+ylabel \gD(V-I)\\d Stetson-CTIO
+points svi dvi
+relocate -100 0
+draw 100 0
+location 3000 30000 9000 15000
+box 0 2 0 0
+ylabel \gDI\\d Stetson-CTIO
+points svi di
+relocate -100 0
+draw 100 0
+location 3000 30000 15000 21000
+box 0 2 0 0
+ylabel \gDV\\d Stetson-CTIO
+points svi dv
+relocate -100 0
+draw 100 0

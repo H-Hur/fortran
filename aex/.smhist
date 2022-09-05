@@ -1,0 +1,39 @@
+data test.dat
+read x 3
+read y 5
+limits -1 2 20 12
+box
+points x y
+limits -1 3 18 7
+erase
+box
+points x y
+erase
+data x 3
+data y 4
+read x 3
+read y 4
+data test.dat
+read x 3
+read y 4
+limits -0.3 2.5 20 10
+box
+points x y
+quit
+data test.dat
+read x 3
+read y 4
+limits -0.3 2.5 20 10
+box
+points x y
+read x 4
+read y 3
+points x y
+erase
+read x 3
+read y 4
+box
+points x y
+quit
+:q
+quit

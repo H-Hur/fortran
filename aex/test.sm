@@ -1,0 +1,12 @@
+dev postportfile test.ps
+#dev x11
+erase
+data test.dat
+read x 3
+read y 4
+limits -0.3 2 1.5 -1
+box
+expand 0.1
+ptype 40 0
+points x y
+expand 1

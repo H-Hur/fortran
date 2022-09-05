@@ -1,0 +1,8 @@
+5                       ! number of points
+102                     ! dependence number
+#x      delta zero
+0.0000     0.0000
+1000.0     0.0000
+2000.0     0.0000
+3000.0     0.0100
+4000.0     0.0200

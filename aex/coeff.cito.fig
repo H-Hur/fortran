@@ -1,0 +1,8 @@
+@U=1, B=2, V=3, R=4, I=5            
+@No-color=0, U-B=1, B-V=2,   R-I=4, V-I=5,
+@zeropoint=000 -> do not use zeropoint.
+#nfilter ncol colorran1 colorran2 transcoeff dtranszero 1st.coeff 2st.coeff time var timeran1 timeran2 timezero   ut-?  zeropoint   xccoeff xczero yccoeff yczero filter   color
+1         1      -100.      100.    0.1016     0.       0.5712     0.0129    0.       -100.     100.    0.        13.   -4.1767      0.       0.     0.       0.    U       U-B
+2         2      -100.      100.   -0.09       0.       0.3453     0.0314    0.       -100.     100.    0.        13.   -2.2708      0.       0.     0.       0.    B       B-V
+3         2      -100.      100.    0.0745     0.       0.173      0.        0.       -100.     100.    0.        13.   -2.2608      0.       0.     0.       0.    V       B-V
+5         5      -100.      100.    0.         0.       0.0826     0.        0.       -100.     100.    0.        13.   -2.7466      0.       0.     0.       0.    I       V-I
